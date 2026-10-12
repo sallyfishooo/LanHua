@@ -1,0 +1,562 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lanhua Resonance | Tri-Screen Control Room</title>
+<style>
+  :root {
+    /* Brutalist Console Colors */
+    --term-bg: #0000AA;
+    --term-text: #FFFFFF;
+    --term-dim: #AAAAAA;
+    --error: #FF5555;
+    --metal-base: #c4c4c4;
+    --key-base: #999999;
+    --key-pressed: #666666;
+
+    /* Lumen Print Colors */
+    --lumen-bg-deep: #19121f;
+    --lumen-bg-mid: #38243b;
+    --lumen-bg-light: #6a4c58;
+    --lumen-frame: rgba(220, 190, 205, 0.15);
+    --lumen-text-dim: #b39da7;
+  }
+  
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0; width: 100vw; height: 100vh; 
+    background: #050505; overflow: hidden; 
+    font-family: "Courier New", Courier, monospace;
+  }
+
+  /* =========================================
+     DASHBOARD LAYOUT (Tri-Screen Grid)
+     ========================================= */
+  #dashboard {
+    display: flex; width: 100%; height: 100%;
+    gap: 4px; /* 硬核的屏幕分割线 */
+    background: #222;
+  }
+  .panel { height: 100%; position: relative; overflow: hidden; }
+
+  /* 1. Console Panel (Left) */
+  #panel-console {
+    flex: 0 0 420px;
+    background: #111;
+    display: flex; align-items: center; justify-content: center;
+    padding: 20px;
+  }
+
+  /* 2. Lumen Archive Panel (Center) */
+  #panel-lumen {
+    flex: 1; min-width: 400px;
+    background: var(--lumen-bg-deep);
+    border-left: 2px solid #000; border-right: 2px solid #000;
+  }
+
+  /* 3. Stage Panel (Right) */
+  #panel-stage {
+    flex: 1.2; min-width: 400px;
+    background: #000;
+    display: flex; align-items: center; justify-content: center;
+  }
+
+  /* =========================================
+     PANEL 1: BRUTALIST METAL CONSOLE
+     ========================================= */
+  #metal-console {
+    width: 100%; height: 100%; max-height: 900px;
+    background-color: var(--metal-base);
+    border: 6px solid #222; border-top-color: #eee; border-left-color: #eee;
+    box-shadow: 10px 10px 0px #000; padding: 20px; 
+    display: flex; flex-direction: column; gap: 15px;
+    position: relative;
+  }
+  
+  .screw { position: absolute; width: 14px; height: 14px; background: #777; border: 2px solid #222; border-top-color: #fff; border-left-color: #fff; }
+  .screw::before { content:''; position:absolute; top:4px; left:1px; width:8px; height:2px; background:#222; border-bottom: 1px solid #aaa; }
+  .screw.tl { top: 8px; left: 8px; } .screw.tr { top: 8px; right: 8px; }
+  .screw.bl { bottom: 8px; left: 8px; } .screw.br { bottom: 8px; right: 8px; }
+
+  #terminal-screen {
+    flex: 1; min-height: 200px;
+    background-color: var(--term-bg); color: var(--term-text);
+    border: 8px solid #111; border-bottom-color: #444; border-right-color: #444;
+    display: flex; flex-direction: column; padding: 12px; font-size: 0.95rem;
+    position: relative; overflow: hidden;
+    text-shadow: 1px 0 1px rgba(255,0,0,0.8), -1px 0 1px rgba(0,255,255,0.8);
+    background-image: linear-gradient(rgba(0,0,0,0) 50%, rgba(0,0,0,0.2) 50%); background-size: 100% 4px;
+    animation: crt-jitter 4s infinite;
+  }
+  @keyframes crt-jitter { 0%, 98% { transform: translate(0, 0); } 98.5% { transform: translate(0, 2px); } 99% { transform: translate(-1px, -1px); } 99.5% { transform: translate(1px, 1px); } 100% { transform: translate(0, 0); } }
+  #terminal-screen::after { content: " "; display: block; position: absolute; top: -100%; left: 0; right: 0; height: 10%; background: rgba(255,255,255,0.05); animation: scanline-scroll 6s linear infinite; pointer-events: none; }
+  @keyframes scanline-scroll { 0% { top: -10%; } 100% { top: 110%; } }
+
+  #top-bar { display: flex; justify-content: space-between; margin-bottom: 10px; font-size: 0.8rem; color: var(--term-dim); }
+  .btn-group { display: flex; gap: 6px; z-index: 60; }
+  .term-btn { background: #000; border: 2px solid #fff; color: #fff; cursor: pointer; padding: 2px 6px; font-family: inherit; font-weight: bold; font-size: 0.8rem; text-shadow: inherit; }
+  .term-btn:active { background: #fff; color: #000; }
+  
+  #chat-log { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; margin-bottom: 10px; z-index: 60; }
+  #chat-log::-webkit-scrollbar { display: none; }
+  .entry { display: flex; flex-direction: column; gap: 2px; }
+  .sys { white-space: pre-wrap; font-size: 0.85rem; line-height: 1.3; color: #ccc; }
+  .sys.error { color: var(--error); font-weight: bold; background: #220000; border: 1px solid var(--error); padding: 2px; }
+  
+  #input-area { display: flex; border-top: 2px solid #fff; padding-top: 8px; position: relative; z-index: 60; }
+  #prompt { margin-right: 8px; font-weight: bold; }
+  #visible-input { flex: 1; outline: none; white-space: pre-wrap; word-break: break-all; }
+  #status-indicator { position: absolute; right: 0; top: -18px; font-size: 0.75rem; background: #fff; color: #000; padding: 0 4px; text-shadow: none; animation: blink 1s infinite steps(1); }
+  @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
+
+  #mech-keyboard {
+    flex-shrink: 0; background: #222; padding: 15px 10px;
+    border: 4px solid #050505; border-bottom-color: #444; border-right-color: #444;
+    display: flex; flex-direction: column; gap: 6px; align-items: center;
+  }
+  .key-row { display: flex; justify-content: center; gap: 5px; width: 100%; } 
+  .key {
+    background: var(--key-base); color: #111; font-weight: bold; font-family: Arial, sans-serif; font-size: 0.7rem;
+    height: 34px; min-width: 26px; flex: 1; max-width: 36px; display: flex; align-items: center; justify-content: center;
+    border: 2px solid #111; border-top-color: #e0e0e0; border-left-color: #e0e0e0; user-select: none;
+    cursor: pointer; /* 加上手指指针提示可点击 */
+  }
+  .key.spacebar { max-width: 160px; flex: 5; }
+  .key.pressed { border-top-color: #111; border-left-color: #111; border-bottom-color: #e0e0e0; border-right-color: #e0e0e0; background: var(--key-pressed); color: #fff; }
+
+  /* =========================================
+     PANEL 2: PURE LUMEN ARCHIVE
+     ========================================= */
+  .lumen-container {
+    width: 100%; height: 100%; display: flex; flex-direction: column;
+    background: radial-gradient(circle at 50% 40%, var(--lumen-bg-light) 0%, var(--lumen-bg-mid) 45%, var(--lumen-bg-deep) 100%);
+    box-shadow: inset 0 0 80px rgba(0,0,0,0.9); font-family: "Optima", "Georgia", serif; position: relative;
+  }
+  .paper-texture { position: absolute; inset: 0; z-index: 1; pointer-events: none; background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.7' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.08'/%3E%3C/svg%3E"); mix-blend-mode: overlay; }
+  .chemical-stain { position: absolute; inset: 0; z-index: 2; pointer-events: none; background: radial-gradient(circle at 20% 80%, rgba(180, 100, 140, 0.08) 0%, transparent 40%), radial-gradient(circle at 80% 20%, rgba(100, 120, 180, 0.08) 0%, transparent 40%); mix-blend-mode: screen; }
+
+  .dialogue-list { flex: 1; overflow-y: auto; padding: 40px 30px 60px; scroll-behavior: smooth; position: relative; z-index: 10; }
+  .dialogue-list::-webkit-scrollbar { width: 4px; }
+  .dialogue-list::-webkit-scrollbar-thumb { background: rgba(200, 170, 190, 0.2); }
+  
+  .turn { position: relative; margin: 0 0 35px; animation: exposure-in 0.6s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+  @keyframes exposure-in { 0% { opacity: 0; filter: brightness(0) blur(10px); transform: translateY(10px); } 40% { filter: brightness(1.5) blur(3px); } 100% { opacity: 1; filter: brightness(1) blur(0); transform: translateY(0); } }
+  
+  .message-row { display: flex; align-items: flex-start; gap: 15px; }
+  .user-row { justify-content: flex-end; } .role-row { justify-content: flex-start; }
+  
+  .speaker-meta { flex: 0 0 65px; display: flex; flex-direction: column; gap: 4px; font-size: 0.7rem; letter-spacing: 0.1em; color: var(--lumen-text-dim); margin-top: 8px;}
+  .speaker-meta strong { font-size: 0.8rem; color: rgba(250, 235, 240, 0.85); font-family: "Courier New", monospace; }
+  .speaker-meta-right { text-align: right; } .speaker-meta-left { text-align: left; }
+  .speaker-meta time { opacity: 0.6; }
+  
+  .bubble { position: relative; isolation: isolate; display: flex; flex-direction: column; padding: 20px 25px; max-width: 80%; }
+  .user-bubble { align-items: flex-end; text-align: right; }
+  .role-bubble { align-items: flex-start; text-align: left; }
+  
+  .lumen-core, .lumen-halo { position: absolute; pointer-events: none; z-index: -1; border-radius: 40% 60% 55% 45% / 50% 45% 55% 50%; }
+  .lumen-core { inset: 0px; background: rgba(255, 248, 242, 0.12); backdrop-filter: blur(8px); box-shadow: inset 0 0 30px rgba(255, 255, 255, 0.1); filter: url(#lumen-bleed); }
+  .lumen-halo { inset: -10px -20px; opacity: 0.6; filter: url(#lumen-bleed) blur(4px); mix-blend-mode: screen; }
+  
+  .user-bubble .lumen-core { background: rgba(252, 235, 225, 0.15); box-shadow: 0 0 30px rgba(242, 199, 206, 0.15); }
+  .user-bubble .lumen-halo { background: radial-gradient(ellipse at center, rgba(242, 199, 206, 0.12) 0%, transparent 70%); }
+  .role-bubble .lumen-core { background: rgba(235, 240, 255, 0.12); box-shadow: 0 0 40px rgba(196, 211, 232, 0.15); }
+  .role-bubble .lumen-halo { background: radial-gradient(ellipse at center, rgba(196, 211, 232, 0.12) 0%, transparent 70%); }
+  
+  .bubble-content { position: relative; z-index: 2; width: 100%; display: flex; flex-direction: column; gap: 10px; }
+  .plain-text { font-size: 1.1rem; line-height: 1.6; letter-spacing: 0.05em; color: rgba(255, 250, 245, 0.95); text-shadow: 0 0 10px rgba(255, 240, 220, 0.5); }
+  
+  .gesture-line { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; }
+  .role-gesture-line { border-top: 1px solid rgba(255, 255, 255, 0.15); padding-top: 10px; margin-top: 5px; }
+  .glyph { width: 50px; height: 50px; object-fit: contain; filter: invert(1) sepia(0.2) saturate(1.5) hue-rotate(-20deg) brightness(1.2) drop-shadow(0 0 8px rgba(255, 240, 230, 0.6)); mix-blend-mode: screen; opacity: 0.9; }
+
+  /* =========================================
+     PANEL 3: STAGE
+     ========================================= */
+  #scene { position: relative; width: 100%; max-width: 100%; max-height: 100%; aspect-ratio: 16 / 9; }
+  .layer { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); pointer-events: none; }
+  .layer video { display: block; width: 100%; height: 100%; object-fit: contain; user-select: none; }
+  
+  #body-layer { width: 80%; height: 96%; z-index: 1; }
+  #left-layer, #right-layer, #both-layer { transition: all 0.5s cubic-bezier(0.2, 0.8, 0.2, 1); }
+  #left-layer, #right-layer { width: 18%; height: auto; aspect-ratio: 1; z-index: 3; }
+  #both-layer { width: 35%; height: auto; aspect-ratio: 16/9; z-index: 3; display: none; }
+
+  .phantom-trail { z-index: 2; opacity: 0.45; pointer-events: none; transition: opacity 0.5s ease-out, transform 0.5s ease-out; }
+  .phantom-trail video { filter: drop-shadow(0 0 6px rgba(255,255,255,0.3)) brightness(1.2); }
+
+  .missing { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; text-align: center; color: var(--error); background: #220000; border: 2px solid var(--error); z-index: 10; font-size: 0.8rem; }
+  #display-status { position: absolute; right: 20px; top: 20px; z-index: 20; padding: 8px 12px; border: 2px solid #fff; background: #000; color: #fff; font-size: 0.85rem; pointer-events: none; transition: opacity 0.5s; text-transform: uppercase; font-weight: bold; opacity: 0; }
+</style>
+</head>
+<body>
+
+<!-- Lumen SVG Filters -->
+<svg style="position: absolute; width: 0; height: 0;" aria-hidden="true">
+  <defs>
+    <filter id="lumen-bleed" x="-20%" y="-20%" width="140%" height="140%" color-interpolation-filters="sRGB">
+      <feTurbulence type="fractalNoise" baseFrequency="0.015 0.025" numOctaves="3" seed="5" result="noise"/>
+      <feDisplacementMap in="SourceGraphic" in2="noise" scale="12" xChannelSelector="R" yChannelSelector="G" result="displaced"/>
+      <feGaussianBlur in="displaced" stdDeviation="1.5" result="blur"/>
+      <feComponentTransfer in="blur"><feFuncA type="linear" slope="1.2"/></feComponentTransfer>
+    </filter>
+  </defs>
+</svg>
+
+<div id="dashboard">
+  
+  <!-- PANEL 1: CONSOLE -->
+  <div class="panel" id="panel-console">
+    <div id="metal-console">
+      <div class="screw tl"></div><div class="screw tr"></div><div class="screw bl"></div><div class="screw br"></div>
+      
+      <div id="terminal-screen">
+        <div id="top-bar">
+          <span></span>
+          <div class="btn-group">
+            <button class="term-btn" id="set-key">CONFIG</button>
+            <button class="term-btn" id="clear-log">CLEAR</button>
+            <button class="term-btn" id="test-next">TEST</button>
+          </div>
+        </div>
+        <div id="chat-log">
+          <div class="entry"><span class="sys">READY.</span></div>
+        </div>
+        <div id="input-area">
+          <div id="status-indicator"></div>
+          <span id="prompt">&gt;</span>
+          <div id="visible-input" contenteditable="true" autofocus spellcheck="false"></div>
+        </div>
+      </div>
+
+      <div id="mech-keyboard">
+        <div class="key-row"><div class="key" data-key="q">Q</div><div class="key" data-key="w">W</div><div class="key" data-key="e">E</div><div class="key" data-key="r">R</div><div class="key" data-key="t">T</div><div class="key" data-key="y">Y</div><div class="key" data-key="u">U</div><div class="key" data-key="i">I</div><div class="key" data-key="o">O</div><div class="key" data-key="p">P</div></div>
+        <div class="key-row"><div class="key" data-key="a">A</div><div class="key" data-key="s">S</div><div class="key" data-key="d">D</div><div class="key" data-key="f">F</div><div class="key" data-key="g">G</div><div class="key" data-key="h">H</div><div class="key" data-key="j">J</div><div class="key" data-key="k">K</div><div class="key" data-key="l">L</div></div>
+        <div class="key-row"><div class="key" data-key="z">Z</div><div class="key" data-key="x">X</div><div class="key" data-key="c">C</div><div class="key" data-key="v">V</div><div class="key" data-key="b">B</div><div class="key" data-key="n">N</div><div class="key" data-key="m">M</div><div class="key" data-key="backspace">DEL</div></div>
+        <div class="key-row"><div class="key spacebar" data-key=" ">SPACEBAR</div><div class="key" data-key="enter">ENT</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- PANEL 2: PURE LUMEN ARCHIVE -->
+  <div class="panel" id="panel-lumen">
+    <div class="lumen-container">
+      <div class="paper-texture"></div><div class="chemical-stain"></div>
+      <section class="dialogue-list" id="lumen-dialogue-list" aria-live="polite"></section>
+    </div>
+  </div>
+
+  <!-- PANEL 3: STAGE -->
+  <div class="panel" id="panel-stage">
+    <div id="scene">
+      <div id="body-layer" class="layer"><video id="body-video" autoplay loop muted playsinline></video><div class="missing" id="body-missing">BASE VIDEO MISSING</div></div>
+      <div id="left-layer" class="layer"><video id="left-media" autoplay loop muted playsinline></video><div class="missing" id="left-missing">L-HAND MISSING</div></div>
+      <div id="right-layer" class="layer"><video id="right-media" autoplay loop muted playsinline></video><div class="missing" id="right-missing">R-HAND MISSING</div></div>
+      <div id="both-layer" class="layer"><video id="both-media" autoplay loop muted playsinline></video><div class="missing" id="both-missing">DUAL-HAND MISSING</div></div>
+    </div>
+    <div id="display-status"></div>
+  </div>
+
+</div>
+
+<!-- Lumen Templates -->
+<template id="lumen-user-template">
+  <article class="turn">
+    <div class="message-row user-row">
+      <div class="bubble user-bubble"><span class="lumen-halo"></span><span class="lumen-core"></span><div class="bubble-content"><div class="plain-text user-text"></div></div></div>
+      <div class="speaker-meta speaker-meta-right"><strong>OPERATOR</strong><time class="user-time"></time></div>
+    </div>
+  </article>
+</template>
+<template id="lumen-role-template">
+  <article class="turn">
+    <div class="message-row role-row">
+      <div class="speaker-meta speaker-meta-left"><strong>LANHUA</strong><time class="role-time"></time></div>
+      <div class="bubble role-bubble"><span class="lumen-halo"></span><span class="lumen-core"></span><div class="bubble-content"><div class="plain-text role-text"></div><div class="gesture-line role-gesture-line"></div></div></div>
+    </div>
+  </article>
+</template>
+
+<script>
+const inputField = document.getElementById("visible-input");
+let sending = false;
+
+// ==========================================
+// 1. Keyboard Physics & Click/Touch Logic
+// ==========================================
+const keyElements = {};
+document.querySelectorAll('.key').forEach(el => {
+  keyElements[el.dataset.key] = el;
+  
+  // 鼠标/手指按下：执行输入并凹陷
+  const pressAction = (e) => {
+    e.preventDefault(); // 极其重要：防止点击按键时输入框失去焦点
+    el.classList.add('pressed');
+    
+    let keyStr = el.dataset.key;
+    if (keyStr === 'enter') {
+      if (!sending) submitChat(inputField.innerText);
+    } else if (keyStr === 'backspace') {
+      inputField.textContent = inputField.textContent.slice(0, -1);
+    } else {
+      inputField.textContent += keyStr; // 屏幕显示小写，与物理键盘默认行为保持一致
+    }
+    
+    // 强制光标回到输入框末尾
+    inputField.focus();
+    if (typeof window.getSelection !== "undefined" && typeof document.createRange !== "undefined") {
+      let range = document.createRange();
+      range.selectNodeContents(inputField);
+      range.collapse(false);
+      let sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(range);
+    }
+  };
+  
+  // 鼠标/手指抬起或移出：恢复凸起
+  const releaseAction = () => { el.classList.remove('pressed'); };
+  
+  el.addEventListener('mousedown', pressAction);
+  el.addEventListener('touchstart', pressAction, {passive: false});
+  el.addEventListener('mouseup', releaseAction);
+  el.addEventListener('mouseleave', releaseAction);
+  el.addEventListener('touchend', releaseAction);
+});
+
+// 监听实体键盘
+window.addEventListener('keydown', (e) => {
+  if(e.repeat) return; let keyStr = e.key.toLowerCase();
+  if (keyElements[keyStr]) keyElements[keyStr].classList.add('pressed');
+  else {
+    const letters = Object.keys(keyElements).filter(k => k.length===1 && k!==' ');
+    if(letters.length>0){ const r = letters[Math.floor(Math.random()*letters.length)]; keyElements[r].classList.add('pressed'); setTimeout(()=>keyElements[r].classList.remove('pressed'), 80); }
+  }
+});
+window.addEventListener('keyup', (e) => { let keyStr = e.key.toLowerCase(); if(keyElements[keyStr]) keyElements[keyStr].classList.remove('pressed'); });
+
+// ==========================================
+// 0. High-Speed RAM Preloading Cache Engine
+// ==========================================
+const videoCache = {};
+
+async function preloadAssets() {
+  const pathsToCache = ['assets/body/body.mp4'];
+  for(let i=0; i<=19; i++) {
+    let id = String(i).padStart(2, "0");
+    pathsToCache.push(`assets/left/${id}.mp4`);
+    pathsToCache.push(`assets/right/${id}.mp4`);
+    pathsToCache.push(`assets/both/${id}.mp4`);
+  }
+
+  const status = document.getElementById("display-status");
+  if(status) { status.innerHTML = "CACHING..."; status.style.opacity = 1; }
+
+  await Promise.allSettled(pathsToCache.map(async path => {
+    try {
+      let res = await fetch(path);
+      if (!res.ok) { res = await fetch(path + '.mp4'); } 
+      if (res.ok) {
+        let blob = await res.blob();
+        videoCache[path] = URL.createObjectURL(blob);
+      }
+    } catch (e) {
+      // 捕获本地 file:// 跨域拦截
+    }
+  }));
+
+  if(status) { status.innerHTML = "READY."; setTimeout(()=> status.style.opacity = 0, 2000); }
+}
+
+// ==========================================
+// 2. Lumen Print Logic & Boot Sequence
+// ==========================================
+const lumenList = document.getElementById("lumen-dialogue-list");
+function timeText(d = new Date()) { return new Intl.DateTimeFormat("en-US", {hour:"2-digit",minute:"2-digit",second:"2-digit",hour12:false}).format(d); }
+
+function createGlyph(id) {
+  const img = document.createElement("img"); img.className = "glyph"; img.src = `assets/glyphs/${id}.png`;
+  img.onerror = function() {
+    this.onerror=null; const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="60" height="60" viewBox="0 0 60 60"><circle cx="30" cy="30" r="26" fill="rgba(255,245,235,0.7)" filter="drop-shadow(0 0 4px rgba(255,255,255,0.8))"/><text x="30" y="33" fill="#2d1c26" font-size="22" font-weight="bold" font-family="Optima, serif" text-anchor="middle" dominant-baseline="middle">${id}</text></svg>`;
+    this.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg.trim());
+  }; return img;
+}
+
+function addLumenTurn(role, text, gestureIds = [], timestamp = new Date()) {
+  const template = role==='user' ? document.getElementById("lumen-user-template") : document.getElementById("lumen-role-template");
+  const node = template.content.cloneNode(true);
+  if(role==='user'){ 
+    node.querySelector(".user-text").textContent = text; 
+    node.querySelector(".user-time").textContent = timeText(timestamp); 
+  } else {
+    node.querySelector(".role-text").textContent = text; 
+    node.querySelector(".role-time").textContent = timeText(timestamp);
+    const roleLine = node.querySelector(".role-gesture-line");
+    if(gestureIds.length>0) gestureIds.forEach(id=>roleLine.appendChild(createGlyph(String(id).padStart(2,'0')))); else roleLine.remove();
+  }
+  lumenList.appendChild(node); requestAnimationFrame(()=>lumenList.scrollTo({top:lumenList.scrollHeight, behavior:'smooth'}));
+}
+
+// Boot Sequence Demo Dialogues
+setTimeout(() => { addLumenTurn('user', "Sometimes I feel this sudden anger, yet I don't know where it comes from.", [], new Date(Date.now() - 180000)); }, 500);
+setTimeout(() => { addLumenTurn('role', "UNSEEN STORMS GATHERING IN THE DARK.", [12, 11, 14, 2], new Date(Date.now() - 175000)); }, 1500);
+setTimeout(() => { addLumenTurn('user', "If you could represent 'tranquility' with a single gesture, what would it be?", [], new Date(Date.now() - 60000)); }, 2800);
+setTimeout(() => { addLumenTurn('role', "STILL WATER REFLECTING THE DISTANT MOON.", [0, 9, 22, 4, 7], new Date(Date.now() - 55000)); }, 4200);
+
+// ==========================================
+// 3. Stage Video Logic (Using Cache)
+// ==========================================
+const GESTURES = [
+  {name:"Unfolding Petals", meaning:"Idle", motion:"idle"}, {name:"Facing the Wind", meaning:"Thinking", motion:"think"},
+  {name:"Smiling", meaning:"Helpless", motion:"hesitate"}, {name:"Fluttering Butterfly", meaning:"Me / Self", motion:"self"},
+  {name:"Dew Drops", meaning:"Shy", motion:"shy"}, {name:"Reflecting the Sun", meaning:"There", motion:"point"},
+  {name:"Protecting Stamen", meaning:"You", motion:"point"}, {name:"Reflection", meaning:"Down", motion:"down"},
+  {name:"Teasing the Flower", meaning:"Invite", motion:"invite"}, {name:"Drooping Tip", meaning:"Yielding", motion:"invite"},
+  {name:"Competing Fragrance", meaning:"Respect", motion:"respect"}, {name:"In Pairs", meaning:"Refuse", motion:"refuse"},
+  {name:"Moistening Rain", meaning:"Angry", motion:"angry"}, {name:"Angry Hair", meaning:"Firm", motion:"firm"},
+  {name:"Rippling Waves", meaning:"Sad", motion:"sad"}, {name:"Floating Fragrance", meaning:"Fear", motion:"fear"},
+  {name:"Double Upward", meaning:"Mild Surprise", motion:"surprise"}, {name:"Overturned Lotus", meaning:"Great Surprise", motion:"big-surprise"},
+  {name:"Twin Flowers", meaning:"Joy", motion:"joy"}, {name:"Sheltering from Wind", meaning:"Praise", motion:"praise"}
+];
+const GESTURE_LAYOUTS = {
+  0: { mode: 'dual', left: { w: 15.0, x: 32.99, y: 60.66, r: 0, f: 1 }, right: { w: 15.0, x: 64.28, y: 77.89, r: 0, f: -1 } },
+  1: { mode: 'dual', left: { w: 15.0, x: 39.83, y: 84.34, r: 0, f: -1 }, right: { w: 15.0, x: 53.80, y: 58.70, r: 0, f: 1 } },
+  2: { mode: 'both', both: { w: 25.0, x: 42.52, y: 75.43, r: 0, f: 1 } },
+  3: { mode: 'dual', left: { w: 15.0, x: 44.20, y: 67.04, r: 0, f: 1 }, right: { w: 15.0, x: 58.10, y: 67.01, r: 0, f: -1 } },
+  4: { mode: 'dual', left: { w: 15.0, x: 36.82, y: 46.28, r: 0, f: 1 }, right: { w: 15.0, x: 64.71, y: 87.44, r: 0, f: -1 } },
+  5: { mode: 'dual', left: { w: 15.0, x: 38.84, y: 77.97, r: 0, f: 1 }, right: { w: 15.0, x: 64.75, y: 45.91, r: 0, f: -1 } },
+  6: { mode: 'dual', left: { w: 12.0, x: 39.22, y: 60.88, r: 0, f: 1 }, right: { w: 13.0, x: 62.73, y: 85.97, r: 0, f: -1 } },
+  7: { mode: 'right', right: { w: 15.0, x: 60.11, y: 97.04, r: 0, f: 1 } },
+  8: { mode: 'both', both: { w: 25.0, x: 50.81, y: 81.04, r: 0, f: 1 } },
+  9: { mode: 'dual', left: { w: 15.0, x: 40.00, y: 60.00, r: 0, f: 1 }, right: { w: 15.0, x: 60.00, y: 60.00, r: 0, f: -1 } }, 
+  10: { mode: 'both', both: { w: 25.0, x: 54.97, y: 66.93, r: 0, f: 1 } },
+  11: { mode: 'both', both: { w: 14.0, x: 50.69, y: 63.80, r: 0, f: 1 } },
+  12: { mode: 'dual', left: { w: 12.0, x: 58.77, y: 52.77, r: 0, f: -1 }, right: { w: 12.0, x: 63.24, y: 86.72, r: 0, f: 1 } },
+  13: { mode: 'dual', left: { w: 15.0, x: 35.00, y: 61.00, r: 0, f: 1 }, right: { w: 15.0, x: 64.38, y: 91.37, r: 0, f: 1 } },
+  14: { mode: 'dual', left: { w: 15.0, x: 37.17, y: 75.72, r: 0, f: -1 }, right: { w: 15.0, x: 66.04, y: 57.49, r: 0, f: 1 } },
+  15: { mode: 'both', both: { w: 19.0, x: 38.53, y: 33.55, r: 0, f: 1 } },
+  16: { mode: 'dual', left: { w: 15.0, x: 39.51, y: 59.38, r: 0, f: 1 }, right: { w: 16.0, x: 62.83, y: 50.06, r: 0, f: 1 } },
+  17: { mode: 'dual', left: { w: 15.0, x: 40.64, y: 64.28, r: 0, f: 1 }, right: { w: 15.0, x: 60.62, y: 68.70, r: 0, f: -1 } },
+  18: { mode: 'both', both: { w: 30.0, x: 50.00, y: 61.00, r: 0, f: 1 } },
+  19: { mode: 'dual', left: { w: 15.0, x: 40.00, y: 60.00, r: 0, f: 1 }, right: { w: 15.0, x: 60.00, y: 60.00, r: 0, f: -1 } } 
+};
+
+function clampGesture(v) { let n=Number.parseInt(v,10); return Math.max(0,Math.min(Number.isFinite(n)?n:0,19)); }
+function assetId(i) { return String(clampGesture(i)).padStart(2,"0"); }
+function showMissingError(m, e, p) { m.style.display="none"; e.style.display="flex"; e.innerHTML=`ERR<br>${p}`; }
+
+function setMedia(mediaElement, missingElement, path) {
+  const srcToUse = videoCache[path] || path;
+  mediaElement.src = srcToUse;
+  mediaElement.style.display = "block";
+  missingElement.style.display = "none";
+  
+  mediaElement.onerror = () => {
+    if (!srcToUse.endsWith('.mp4.mp4')) {
+      const fallback = path + '.mp4';
+      mediaElement.src = videoCache[fallback] || fallback;
+      mediaElement.onerror = () => showMissingError(mediaElement, missingElement, path);
+    } else { 
+      showMissingError(mediaElement, missingElement, path); 
+    }
+  };
+}
+
+function applyLayerTransform(l) { const r=l.dataset.rot||0, f=l.dataset.flip||1; l.style.transform=`translate(-50%,-50%) rotate(${r}deg) scaleX(${f*0.8}) scaleY(0.8)`; }
+
+function spawnGhostTrail(layer, mediaElement) {
+  if (layer.style.display === "none" || !mediaElement || !mediaElement.src) return;
+  let count = 0; const scene = document.getElementById("scene");
+  const intv = setInterval(() => {
+    if (count > 7) { clearInterval(intv); return; }
+    const computed = window.getComputedStyle(layer); const ghost = document.createElement("div");
+    ghost.className = "layer phantom-trail"; ghost.style.left = computed.left; ghost.style.top = computed.top; ghost.style.width = computed.width; ghost.style.transform = computed.transform;
+    const ghostVid = document.createElement("video"); ghostVid.src = mediaElement.src; ghostVid.muted = true; ghostVid.playsInline = true;
+    if (mediaElement.readyState >= 1) { try { ghostVid.currentTime = mediaElement.currentTime; } catch(e){} }
+    ghost.appendChild(ghostVid); scene.insertBefore(ghost, layer); void ghost.offsetWidth;
+    ghost.style.opacity = "0"; ghost.style.transform = computed.transform + " scale(1.15)";
+    setTimeout(() => ghost.remove(), 500); count++;
+  }, 35);
+}
+
+function showGestureOnStage(index, overrideMotion) {
+  const safe = clampGesture(index); const id = assetId(safe); const layout = GESTURE_LAYOUTS[safe]; const mode = layout.mode||"dual";
+  const isBoth = (mode==="both"), isLeft = (mode==="left"), isRight = (mode==="right");
+  const lL = document.getElementById("left-layer"), rL = document.getElementById("right-layer"), bL = document.getElementById("both-layer");
+  
+  if (isBoth) {
+    const c = layout.both || {x:50,y:61,w:30,r:0,f:1}; bL.style.left=c.x+"%"; bL.style.top=c.y+"%"; bL.style.width=c.w+"%"; bL.dataset.rot=c.r||0; bL.dataset.flip=c.f||1; applyLayerTransform(bL);
+    lL.style.display="none"; rL.style.display="none"; bL.style.display="block"; setMedia(document.getElementById("both-media"), document.getElementById("both-missing"), `assets/both/${id}.mp4`); spawnGhostTrail(bL, document.getElementById("both-media"));
+  } else {
+    bL.style.display="none"; lL.style.display=isRight?"none":"block"; rL.style.display=isLeft?"none":"block";
+    if(!isRight){ const c=layout.left||{x:35,y:61,w:15,r:0,f:1}; lL.style.left=c.x+"%"; lL.style.top=c.y+"%"; lL.style.width=c.w+"%"; lL.dataset.rot=c.r||0; lL.dataset.flip=c.f||1; applyLayerTransform(lL); setMedia(document.getElementById("left-media"), document.getElementById("left-missing"), `assets/left/${id}.mp4`); spawnGhostTrail(lL, document.getElementById("left-media")); }
+    if(!isLeft){ const c=layout.right||{x:65,y:61,w:15,r:0,f:1}; rL.style.left=c.x+"%"; rL.style.top=c.y+"%"; rL.style.width=c.w+"%"; rL.dataset.rot=c.r||0; rL.dataset.flip=c.f||1; applyLayerTransform(rL); setMedia(document.getElementById("right-media"), document.getElementById("right-missing"), `assets/right/${id}.mp4`); spawnGhostTrail(rL, document.getElementById("right-media")); }
+  }
+  const info = GESTURES[safe]; playMotion(overrideMotion||info.motion, isBoth);
+}
+
+function playMotion(m, isBoth) {
+  const l = document.getElementById("left-media"), r = document.getElementById("right-media"), b = document.getElementById("both-media");
+  [l,r,b].forEach(el=>{el.getAnimations({subtree:true}).forEach(a=>a.cancel()); el.style.transform="none";});
+  let tgts = []; if(isBoth) tgts.push(b); else { if(l.parentNode.style.display!=="none") tgts.push(l); if(r.parentNode.style.display!=="none") tgts.push(r); }
+  const p = { think:{frames:[{transform:"translateY(10px) rotate(-2deg)"},{transform:"translateY(-10px) rotate(2deg)"},{transform:"translateY(0)"}],opt:{duration:1500,iterations:2}}, idle:{frames:[{transform:"translateY(0)"},{transform:"translateY(-5px)"},{transform:"translateY(0)"}],opt:{duration:2600,iterations:Infinity}} };
+  const pst = p[m]||p.idle; tgts.forEach((tgt,i)=>{ const f = pst.frames.map(fr=>{ if(!isBoth&&i===1&&fr.transform) return {...fr,transform:fr.transform.replace(/rotate\((-?\d+(?:\.\d+)?)deg\)/g,(_,n)=>`rotate(${-Number(n)}deg)`)}; return fr;}); tgt.animate(f,{fill:"none",...pst.opt,easing:"ease-in-out"}); });
+}
+
+// ==========================================
+// 4. Console Logic & Gemini Integration
+// ==========================================
+const MODEL_NAME = "gemini-3-flash-preview"; 
+let API_KEY = localStorage.getItem("gemini_api_key") || "AQ.Ab8RN6LP93S7A8cMDCLiRCiEaeDMOnIcSmEi0yfQoYH1LRTA6A"; 
+let history = []; let testIndex = 0;
+const chatLog = document.getElementById("chat-log"), statusInd = document.getElementById("status-indicator");
+
+function appendLog(u, s, err=false) {
+  const e = document.createElement("div"); e.className="entry";
+  if(u){ const un=document.createElement("span"); un.textContent="> "+u; e.appendChild(un); }
+  if(s){ const sn=document.createElement("span"); sn.className=err?"sys error":"sys"; sn.textContent=(err?"[ERR] ": "")+s; e.appendChild(sn); }
+  chatLog.appendChild(e); chatLog.scrollTop = chatLog.scrollHeight; return e;
+}
+
+document.getElementById("set-key").onclick = () => { const k = prompt("API Key:", API_KEY); if(k){ API_KEY=k.trim(); localStorage.setItem("gemini_api_key", API_KEY); appendLog(null,"KEY SET."); } inputField.focus(); };
+document.getElementById("clear-log").onclick = () => { lumenList.innerHTML=""; appendLog(null,"CLEARED."); inputField.focus(); };
+document.getElementById("test-next").onclick = () => { testIndex=(testIndex+1)%20; showGestureOnStage(testIndex, 'idle'); inputField.focus(); };
+inputField.addEventListener("keydown", (e) => { if (e.key==="Enter" && !e.shiftKey) { e.preventDefault(); submitChat(inputField.innerText); } });
+
+const SYS_PROMPT = `Silent theatrical persona. Speak in concise, poetic inner thoughts via Peking Opera gestures (0-19). Reply max 15 English words. Output exactly: {"reply":"thought","gesture":12,"motion":"think"}`;
+
+async function submitChat(txt) {
+  if (sending || !txt.trim()) return; inputField.textContent = ""; if (!API_KEY) { appendLog(txt, "NO API KEY.", true); return; }
+  sending = true; statusInd.textContent = "BUSY"; const entry = appendLog(txt, "...");
+  addLumenTurn('user', txt); showGestureOnStage(1, "think"); 
+  try {
+    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${MODEL_NAME}:generateContent?key=${API_KEY}`, {
+      method:"POST", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({ contents:[...history,{role:"user",parts:[{text:txt}]}], systemInstruction:{parts:[{text:SYS_PROMPT}]}, generationConfig:{temperature:0.85, responseMimeType:"application/json"} })
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const raw = (await res.json())?.candidates?.[0]?.content?.parts?.[0]?.text;
+    if (!raw) throw new Error("EMPTY_RES");
+    const parsed = JSON.parse(String(raw).replace(/^```json\s*/i,"").replace(/^```\s*/i,"").replace(/```\s*$/i,"").trim());
+    const gest = clampGesture(parsed.gesture), mot = parsed.motion || "idle", rep = String(parsed.reply||"").trim().slice(0,80);
+    
+    entry.querySelector(".sys").textContent = rep.toUpperCase();
+    showGestureOnStage(gest, mot); addLumenTurn('role', rep, [gest]);
+    history.push({role:"user",parts:[{text:txt}]}, {role:"model",parts:[{text:JSON.stringify({reply:rep,gesture:gest,motion:mot})}]});
+    if (history.length>12) history = history.slice(-12);
+  } catch (err) { entry.querySelector(".sys").className="sys error"; entry.querySelector(".sys").textContent="[ERR] "+err.message; showGestureOnStage(2,"hesitate"); } 
+  finally { sending = false; statusInd.textContent = ""; inputField.focus(); }
+}
+
+window.addEventListener('DOMContentLoaded', () => {
+    preloadAssets();
+    const bv = document.getElementById("body-video"), bm = document.getElementById("body-missing");
+    bm.style.display="none"; 
+    bv.src = videoCache['assets/body/body.mp4'] || 'assets/body/body.mp4';
+    bv.onerror=()=>{ if(!bv.src.endsWith('.mp4.mp4')){bv.src='assets/body/body.mp4.mp4'; bv.onerror=()=>{bv.style.display="none"; bm.style.display="flex";}} else{bv.style.display="none"; bm.style.display="flex";} };
+    showGestureOnStage(0);
+});
+</script>
+</body>
+</html>
